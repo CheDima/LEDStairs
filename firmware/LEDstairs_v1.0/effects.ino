@@ -35,38 +35,39 @@ void stepFader(bool dir, bool state) {
               EVERY_MS(50) {
                 changeBright -= 5;
                 if (changeBright < 0) break;
-                strip.setBrightness(changeBright);
+                FastLED.setBrightness(changeBright);
                 fireStairs(0, 0, 0);
-                strip.show();
+                FastLED.show();
               }
             }
-            strip.clear();
-            strip.setBrightness(curBright);
-            strip.show();
+            FastLED.clear();
+            FastLED.setBrightness(curBright);
+            FastLED.show();
           } else {
             int changeBright = 0;
-            strip.setBrightness(0);
+            FastLED.setBrightness(0);
             while (1) {
               EVERY_MS(50) {
                 changeBright += 5;
                 if (changeBright > curBright) break;
-                strip.setBrightness(changeBright);
+                FastLED.setBrightness(changeBright);
                 fireStairs(0, 0, 0);
-                strip.show();
+                FastLED.show();
               }
-              strip.setBrightness(curBright);
+              FastLED.setBrightness(curBright);
             }
           }
           return;
           break;
       }
-      strip.show();
+      FastLED.show();
       if (counter == STEP_AMOUNT) break;
     }
+  yield();
   }
   if (state == 1) {
-    strip.clear();
-    strip.show();
+    FastLED.clear();
+    FastLED.show();
   }
 }
 
@@ -86,12 +87,12 @@ void fireStairs(int8_t dir, byte from, byte to) {
   static uint16_t counter = 0;
   FOR_i(0, STEP_LENGTH) {
     FOR_j(0, STEP_AMOUNT) {
-      strip.setPix(i, j, mHEX(getPixColor(ColorFromPalette(
+      leds[i, j] = ColorFromPalette(
                                             firePalette,
                                             (inoise8(i * FIRE_STEP, j * FIRE_STEP, counter)),
                                             255,
                                             LINEARBLEND
-                                          ))));
+                                          );
     }
   }
   counter += 10;
@@ -117,7 +118,7 @@ void staticColor(int8_t dir, byte from, byte to) {
   FOR_i(0, STEP_AMOUNT) {
     thisBright = 255;
     if (i < from || i >= to) thisBright = 0;
-    fillStep(i, mHSV(colorCounter, 255, thisBright));
+    fillStep(i, CHSV(colorCounter, 255, thisBright));
   }
 }
 
@@ -130,12 +131,12 @@ void rainbowStripes(int8_t dir, byte from, byte to) {
   FOR_i(0, STEP_AMOUNT) {
     thisBright = 255;
     if (i < from || i >= to) thisBright = 0;
-    fillStep((dir > 0) ? (i) : (STEP_AMOUNT - 1 - i), mHSV(colorCounter + (float)i * 255 / STEP_AMOUNT, 255, thisBright));
+    fillStep((dir > 0) ? (i) : (STEP_AMOUNT - 1 - i), CHSV(colorCounter + (float)i * 255 / STEP_AMOUNT, 255, thisBright));
   }
 }
 
 // ========= залить ступеньку цветом (служебное)
-void fillStep(int8_t num, LEDdata color) {
+void fillStep(int8_t num, CRGB color) {
   if (num >= STEP_AMOUNT || num < 0) return;
   FOR_i(num * STEP_LENGTH, num * STEP_LENGTH + STEP_LENGTH) {
     leds[i] = color;
