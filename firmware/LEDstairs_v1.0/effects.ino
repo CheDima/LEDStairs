@@ -7,63 +7,52 @@ void stepFader(bool dir, bool state) {
   // 1 0
   // 1 1
   byte mode = state | (dir << 1);
-  byte counter = 0;
+  int counter = 0;
   while (1) {
-    EVERY_MS(FADR_SPEED) {
-      counter++;
-      switch (curEffect) {
-        case COLOR:
-          switch (mode) {
-            case 0: staticColor(1, 0, counter); break;
-            case 1: staticColor(1, counter, STEP_AMOUNT); break;
-            case 2: staticColor(-1, STEP_AMOUNT - counter, STEP_AMOUNT); break;
-            case 3: staticColor(-1, 0, STEP_AMOUNT - counter); break;
-          }
+    if (curEffect == SNAKE) {
+      EVERY_MS(SNAKE_SPEED) {
+        switch (mode) {
+              case 0: rainbowDots(0, counter); break;
+              case 1: rainbowDots(counter, NUMLEDS); break;
+              case 2: rainbowDots(NUMLEDS - counter, NUMLEDS); break;
+              case 3: rainbowDots(0, NUMLEDS - counter); break;
+        }
+        counter++;
+        yield();
+        Serial.println("rainbow!");
+        Serial.print(counter);
+        if (counter == NUMLEDS) {
+          Serial.println("Quitting rainbow");
           break;
-        case RAINBOW:
-          switch (mode) {
-            case 0: rainbowStripes(-1, STEP_AMOUNT - counter, STEP_AMOUNT); break;
-            case 1: rainbowStripes(-1, 0, STEP_AMOUNT - counter); break;
-            case 2: rainbowStripes(1, STEP_AMOUNT - counter, STEP_AMOUNT); break;
-            case 3: rainbowStripes(1, 0, STEP_AMOUNT - counter); break;
-          }
-          break;
-        case FIRE:
-          if (state) {
-            int changeBright = curBright;
-            while (1) {
-              EVERY_MS(50) {
-                changeBright -= 5;
-                if (changeBright < 0) break;
-                FastLED.setBrightness(changeBright);
-                fireStairs(0, 0, 0);
-                FastLED.show();
-              }
-            }
-            FastLED.clear();
-            FastLED.setBrightness(curBright);
-            FastLED.show();
-          } else {
-            int changeBright = 0;
-            FastLED.setBrightness(0);
-            while (1) {
-              EVERY_MS(50) {
-                changeBright += 5;
-                if (changeBright > curBright) break;
-                FastLED.setBrightness(changeBright);
-                fireStairs(0, 0, 0);
-                FastLED.show();
-              }
-              FastLED.setBrightness(curBright);
-            }
-          }
-          return;
-          break;
+          
+        }
       }
-      FastLED.show();
-      if (counter == STEP_AMOUNT) break;
+    } else {
+      EVERY_MS(FADR_SPEED) {
+        counter++;
+        switch (curEffect) {
+          case COLOR:
+            switch (mode) {
+              case 0: staticColor(1, 0, counter); break;
+              case 1: staticColor(1, counter, STEP_AMOUNT); break;
+              case 2: staticColor(-1, STEP_AMOUNT - counter, STEP_AMOUNT); break;
+              case 3: staticColor(-1, 0, STEP_AMOUNT - counter); break;
+            }
+            break;
+          case RAINBOW:
+            switch (mode) {
+              case 0: rainbowStripes(-1, STEP_AMOUNT - counter, STEP_AMOUNT); break;
+              case 1: rainbowStripes(-1, 0, STEP_AMOUNT - counter); break;
+              case 2: rainbowStripes(1, STEP_AMOUNT - counter, STEP_AMOUNT); break;
+              case 3: rainbowStripes(1, 0, STEP_AMOUNT - counter); break;
+            }
+            break;
+        }
+        FastLED.show();
+        if (counter == STEP_AMOUNT) break;
+      }
+    yield();
     }
-  yield();
   }
   if (state == 1) {
     FastLED.clear();
@@ -71,42 +60,12 @@ void stepFader(bool dir, bool state) {
   }
 }
 
-// ============== ЭФФЕКТЫ =============
-// ========= огонь
-// настройки пламени
-#define HUE_GAP 45      // заброс по hue
-#define FIRE_STEP 90    // шаг изменения "языков" пламени
-#define HUE_START 2     // начальный цвет огня (0 красный, 80 зелёный, 140 молния, 190 розовый)
-#define MIN_BRIGHT 150  // мин. яркость огня
-#define MAX_BRIGHT 255  // макс. яркость огня
-#define MIN_SAT 220     // мин. насыщенность
-#define MAX_SAT 255     // макс. насыщенность
-
-void fireStairs(int8_t dir, byte from, byte to) {
-  effSpeed = 30;
-  static uint16_t counter = 0;
-  FOR_i(0, STEP_LENGTH) {
-    FOR_j(0, STEP_AMOUNT) {
-      leds[i, j] = ColorFromPalette(
-                                            firePalette,
-                                            (inoise8(i * FIRE_STEP, j * FIRE_STEP, counter)),
-                                            255,
-                                            LINEARBLEND
-                                          );
-    }
-  }
-  counter += 10;
-}
-uint32_t getPixColor(CRGB thisPixel) {
-  return (((uint32_t)thisPixel.r << 16) | (thisPixel.g << 8) | thisPixel.b);
-}
-CRGB getFireColor(int val) {
-  // чем больше val, тем сильнее сдвигается цвет, падает насыщеность и растёт яркость
-  return CHSV(
-           HUE_START + map(val, 0, 255, 0, HUE_GAP),                    // H
-           constrain(map(val, 0, 255, MAX_SAT, MIN_SAT), 0, 255),       // S
-           constrain(map(val, 0, 255, MIN_BRIGHT, MAX_BRIGHT), 0, 255)  // V
-         );
+// ========= dots радужные
+void rainbowDots(int from, int to) {
+  
+  FastLED.clear();
+  fill_rainbow(&(leds[from]), to - from, 100, 1);
+  FastLED.show();
 }
 
 // ========= смена цвета общая

@@ -15,8 +15,9 @@
 #define AUTO_BRIGHT 0     // автояркость 0/1 вкл/выкл (с фоторезистором)
 #define CUSTOM_BRIGHT 40  // ручная яркость
 
-#define FADR_SPEED 500
-#define START_EFFECT RAINBOW    // режим при старте COLOR, RAINBOW, FIRE
+#define SNAKE_SPEED 20    // ms for one led in runnig modes
+#define FADR_SPEED 300    // ms for one step
+#define START_EFFECT SNAKE    // режим при старте COLOR, RAINBOW, FIRE
 #define ROTATE_EFFECTS 0      // 0/1 - автосмена эффектов
 #define TIMEOUT 15            // секунд, таймаут выключения ступенек, если не сработал конечный датчик
 
@@ -38,7 +39,7 @@ int effSpeed;
 int8_t effDir;
 byte curBright = CUSTOM_BRIGHT;
 enum {S_IDLE, S_WORK} systemState = S_IDLE;
-enum EFFECTS {COLOR, RAINBOW, FIRE} curEffect = START_EFFECT;
+enum EFFECTS {COLOR, RAINBOW, NIGHT, SNAKE} curEffect = START_EFFECT;
 #define EFFECTS_AMOUNT 3
 byte effectCounter;
 
@@ -61,33 +62,12 @@ void setup() {
   pinMode(SENSOR_START, INPUT);
   pinMode(SENSOR_END, INPUT);
   FastLED.addLeds<WS2812, STRIP_PIN, GRB>(leds, NUMLEDS).setCorrection( TypicalLEDStrip );
-  FastLED.setBrightness(CUSTOM_BRIGHT);
   Serial.begin(9600);
-  //FastLED.addLeds<WS2811, STRIP_PIN, GRB>(leds, NUMLEDS).setCorrection( TypicalLEDStrip );
   FastLED.setBrightness(curBright);    // яркость (0-255)
-  FastLED.clear();
-  FastLED.show();
   // для кнопок
   //pinMode(SENSOR_START, INPUT_PULLUP);
   //pinMode(SENSOR_END, INPUT_PULLUP);
-  firePalette = CRGBPalette16(
-                  getFireColor(0 * 16),
-                  getFireColor(1 * 16),
-                  getFireColor(2 * 16),
-                  getFireColor(3 * 16),
-                  getFireColor(4 * 16),
-                  getFireColor(5 * 16),
-                  getFireColor(6 * 16),
-                  getFireColor(7 * 16),
-                  getFireColor(8 * 16),
-                  getFireColor(9 * 16),
-                  getFireColor(10 * 16),
-                  getFireColor(11 * 16),
-                  getFireColor(12 * 16),
-                  getFireColor(13 * 16),
-                  getFireColor(14 * 16),
-                  getFireColor(15 * 16)
-                );
+
   delay(100);
   FastLED.clear();
   FastLED.show();
@@ -96,7 +76,6 @@ void setup() {
 void loop() {
   getBright();
   readSensors();
-  effectFlow();
 }
 
 void getBright() {
@@ -109,23 +88,6 @@ void getBright() {
     }
   }
 #endif
-}
-
-// крутилка эффектов в режиме активной работы
-void effectFlow() {
-  if (systemState == S_WORK) {
-    static uint32_t tmr;
-    if (millis() - tmr >= effSpeed) {
-      tmr = millis();
-      //EVERY_MS(effSpeed) {
-      switch (curEffect) {
-        case COLOR: staticColor(effDir, 0, STEP_AMOUNT); break;
-        case RAINBOW: rainbowStripes(-effDir, 0, STEP_AMOUNT); break; // rainbowStripes - приёмный
-        case FIRE: fireStairs(effDir, 0, 0); break;
-      }
-      FastLED.show();
-    }
-  }
 }
 
 // читаем сенсоры
@@ -151,7 +113,6 @@ void readSensors() {
   EVERY_MS(50) {
     // СЕНСОР У НАЧАЛА ЛЕСТНИЦЫ
     if (digitalRead(SENSOR_START)) {
-            Serial.println("Start sensor triggered");
       if (!flag1) {
         flag1 = true;
         timeoutCounter = millis();
@@ -189,9 +150,9 @@ void readSensors() {
           }
         }
         switch (systemState) {
-          case S_IDLE: Serial.println("SystemState is IDLE"); stepFader(1, 0); systemState = S_WORK; break;
+          case S_IDLE: 
+            stepFader(1, 0); systemState = S_WORK; break;
           case S_WORK:
-          Serial.println("SystemState is WORK");
             if (effDir == 1) {
               stepFader(0, 1); systemState = S_IDLE;
               FastLED.clear(); FastLED.show(); return;
