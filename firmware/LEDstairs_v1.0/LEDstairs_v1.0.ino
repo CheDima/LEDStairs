@@ -15,31 +15,43 @@
 #define AUTO_BRIGHT 0     // автояркость 0/1 вкл/выкл (с фоторезистором)
 #define CUSTOM_BRIGHT 40  // ручная яркость
 
-#define SNAKE_SPEED 20    // ms for one led in runnig modes
-#define FADR_SPEED 300    // ms for one step
+#define LED_SPEED 20      // ms for one led in runnig modes
+#define STEP_SPEED 300    // ms for one step
 #define START_EFFECT SNAKE    // режим при старте COLOR, RAINBOW, FIRE
 #define ROTATE_EFFECTS 0      // 0/1 - автосмена эффектов
-#define TIMEOUT 15            // секунд, таймаут выключения ступенек, если не сработал конечный датчик
+#define TIMEOUT 5            // секунд, таймаут выключения ступенек, если не сработал конечный датчик
 
 // пины
 // если перепутаны сенсоры - можно поменять их местами в коде! Вот тут
-#define SENSOR_START 0
-#define SENSOR_END 4
+#define SENSOR_UP D3
+#define SENSOR_DOWN D2
 #define STRIP_PIN D5    // пин ленты 
 #define PHOTO_PIN A0
 
 // для разработчиков
 #define ORDER_GRB       // порядок цветов ORDER_GRB / ORDER_RGB / ORDER_BRG
-#define COLOR_DEBTH 2   // цветовая глубина: 1, 2, 3 (в байтах)
+#define COLOR_DEPTH 2   // цветовая глубина: 1, 2, 3 (в байтах)
 
 #define NUMLEDS STEP_AMOUNT * STEP_LENGTH // кол-во светодиодов
 CRGB leds[NUMLEDS];  // буфер ленты
 
-int effSpeed;
-int8_t effDir;
 byte curBright = CUSTOM_BRIGHT;
-enum {S_IDLE, S_WORK} systemState = S_IDLE;
-enum EFFECTS {COLOR, RAINBOW, NIGHT, SNAKE} curEffect = START_EFFECT;
+
+enum DIRECTION {UP, DOWN};
+enum ACTION {STARTING, FINISHING};
+enum STATE {IDLE, WORK, WAITING_FOR_FINISH};
+
+struct Status {
+  DIRECTION direction;
+  ACTION action;
+  STATE state;
+};
+
+Status systemState;
+
+
+enum EFFECTS {COLOR, RAINBOW, NIGHT, SNAKE};
+EFFECTS curEffect = START_EFFECT;
 #define EFFECTS_AMOUNT 3
 byte effectCounter;
 
@@ -55,15 +67,18 @@ byte effectCounter;
 //===========================
 
 
-int counter = 0;
+byte stepCount = 0;
+int ledCount = 0;
+uint32_t idleTimeoutCounter;
+    
 CRGBPalette16 firePalette;
 
 void setup() {
-  pinMode(SENSOR_START, INPUT);
-  pinMode(SENSOR_END, INPUT);
   FastLED.addLeds<WS2812, STRIP_PIN, GRB>(leds, NUMLEDS).setCorrection( TypicalLEDStrip );
   Serial.begin(9600);
-  FastLED.setBrightness(curBright);    // яркость (0-255)
+  FastLED.setBrightness(curBright);    // brightness (0-255)
+  pinMode(SENSOR_UP, INPUT);
+  pinMode(SENSOR_DOWN, INPUT);
   // для кнопок
   //pinMode(SENSOR_START, INPUT_PULLUP);
   //pinMode(SENSOR_END, INPUT_PULLUP);
@@ -76,31 +91,53 @@ void setup() {
 void loop() {
   getBright();
   readSensors();
+  updateEffects();
 }
 
-void getBright() {
-#if (AUTO_BRIGHT == 1)
-  if (systemState == S_IDLE) {  // в режиме простоя
-    EVERY_MS(3000) {            // каждые 3 сек
-      //Serial.println(analogRead(PHOTO_PIN));
-      curBright = map(analogRead(PHOTO_PIN), 30, 800, 10, 200);
-      FastLED.setBrightness(curBright);
+bool systemIs(STATE state) {
+    return state == systemState.state;
+}
+
+bool systemIs(STATE state, DIRECTION dir, ACTION action = STARTING) {
+    return state == systemState.state && dir == systemState.direction && action == systemState.action;
+}
+
+void updateEffects() {
+  if (systemState.state == WORK && curEffect == SNAKE) {
+    EVERY_MS(LED_SPEED) {
+      FastLED.clear();
+      if (systemIs(WORK, UP, STARTING)) rainbowDots(0, ledCount);
+      if (systemIs(WORK, UP, FINISHING)) rainbowDots(ledCount, NUMLEDS); 
+      if (systemIs(WORK, DOWN, STARTING)) rainbowDots(NUMLEDS - ledCount, NUMLEDS);
+      if (systemIs(WORK, DOWN, FINISHING)) rainbowDots(0, NUMLEDS - ledCount);
+      ledCount++;
+      if (ledCount == NUMLEDS) {
+        if (systemState.action == FINISHING) {
+          systemState.state = IDLE;
+        } else {
+          systemState.state = WAITING_FOR_FINISH;
+          idleTimeoutCounter = millis();
+        }
+      }
+      FastLED.show();
     }
+
   }
-#endif
 }
 
-// читаем сенсоры
-void readSensors() {
-  static bool flag1 = false, flag2 = false;
-  static uint32_t timeoutCounter;
-  if (systemState == S_WORK && millis() - timeoutCounter >= (TIMEOUT * 1000L)) {
-    systemState = S_IDLE;
+void fadeIfTimeOut() {
+  // fade if time out
+
+  if (systemIs(WAITING_FOR_FINISH) && millis() - idleTimeoutCounter >= (TIMEOUT * 1000L)) {
+    Serial.println("Entered fadeIfTimeOut");
+    systemState.state = IDLE;
     int changeBright = curBright;
     while (1) {
       EVERY_MS(50) {
         changeBright -= 5;
-        if (changeBright < 0) break;
+        if (changeBright < 0) {
+          break;
+        }
         FastLED.setBrightness(changeBright);
         FastLED.show();
       }
@@ -109,58 +146,52 @@ void readSensors() {
     FastLED.setBrightness(curBright);
     FastLED.show();
   }
+  
+}
+
+void changeState(DIRECTION dir, ACTION action = STARTING, STATE state = WORK) {
+  systemState.direction = dir;
+  systemState.action = action;
+  systemState.state = state;
+  stepCount = 0;
+  ledCount = 0;
+}
+
+void readSensors() {
+
+  fadeIfTimeOut();
+
+  // Action
 
   EVERY_MS(50) {
-    // СЕНСОР У НАЧАЛА ЛЕСТНИЦЫ
-    if (digitalRead(SENSOR_START)) {
-      if (!flag1) {
-        flag1 = true;
-        timeoutCounter = millis();
-        if (systemState == S_IDLE) {
-          effDir = 1;
-          if (ROTATE_EFFECTS) {
-            if (++effectCounter >= EFFECTS_AMOUNT) effectCounter = 0;
-            curEffect = (EFFECTS)effectCounter;
-          }
-        }
-        switch (systemState) {
-          case S_IDLE: stepFader(0, 0); systemState = S_WORK; break;
-          case S_WORK:
-            if (effDir == -1) {
-              stepFader(1, 1); systemState = S_IDLE;
-              FastLED.clear(); FastLED.show(); return;
-            } break;
-        }
+    if (digitalRead(SENSOR_UP)) {
+      if (systemIs(IDLE)) {
+        changeState(DOWN);
+      } else 
+      if (systemIs(WAITING_FOR_FINISH, UP)){
+        changeState(UP, FINISHING);
       }
-    } else {
-      if (flag1) flag1 = false;
     }
 
-    // СЕНСОР У КОНЦА ЛЕСТНИЦЫ
-    if (digitalRead(SENSOR_END)) {
-      Serial.println("End sensor triggered");
-      if (!flag2) {
-        flag2 = true;
-        timeoutCounter = millis();
-        if (systemState == S_IDLE) {
-          effDir = -1;
-          if (ROTATE_EFFECTS) {
-            if (++effectCounter >= EFFECTS_AMOUNT) effectCounter = 0;
-            curEffect = (EFFECTS) effectCounter;
-          }
-        }
-        switch (systemState) {
-          case S_IDLE: 
-            stepFader(1, 0); systemState = S_WORK; break;
-          case S_WORK:
-            if (effDir == 1) {
-              stepFader(0, 1); systemState = S_IDLE;
-              FastLED.clear(); FastLED.show(); return;
-            } break;
-        }
+    if (digitalRead(SENSOR_DOWN)) {
+      if (systemIs(IDLE)) {
+        changeState(UP);
+      } else 
+      if (systemIs(WAITING_FOR_FINISH, DOWN)){
+        changeState(DOWN, FINISHING);
       }
-    } else {
-      if (flag2) flag2 = false;
     }
   }
+}
+
+void getBright() {
+#if (AUTO_BRIGHT == 1)
+  if (systemState == IDLE) {  // в режиме простоя
+    EVERY_MS(3000) {            // каждые 3 сек
+      //Serial.println(analogRead(PHOTO_PIN));
+      curBright = map(analogRead(PHOTO_PIN), 30, 800, 10, 200);
+      FastLED.setBrightness(curBright);
+    }
+  }
+#endif
 }

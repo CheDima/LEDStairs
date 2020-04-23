@@ -1,16 +1,16 @@
 // плавный включатель-выключатель эффектов
-void stepFader(bool dir, bool state) {
-  // dir 0 на себя, 1 от себя
-  // state 0 рост, 1 выкл
+void stepFader(bool dir, bool action) {
+  // dir 0 up, 1 down
+  // action 0 starting, 1 finishing
   // 0 0
   // 0 1
   // 1 0
   // 1 1
-  byte mode = state | (dir << 1);
+  byte mode = action | (dir << 1);
   int counter = 0;
   while (1) {
     if (curEffect == SNAKE) {
-      EVERY_MS(SNAKE_SPEED) {
+      EVERY_MS(LED_SPEED) {
         switch (mode) {
               case 0: rainbowDots(0, counter); break;
               case 1: rainbowDots(counter, NUMLEDS); break;
@@ -28,7 +28,7 @@ void stepFader(bool dir, bool state) {
         }
       }
     } else {
-      EVERY_MS(FADR_SPEED) {
+      EVERY_MS(STEP_SPEED) {
         counter++;
         switch (curEffect) {
           case COLOR:
@@ -54,7 +54,7 @@ void stepFader(bool dir, bool state) {
     yield();
     }
   }
-  if (state == 1) {
+  if (action == 1) {
     FastLED.clear();
     FastLED.show();
   }
@@ -62,15 +62,11 @@ void stepFader(bool dir, bool state) {
 
 // ========= dots радужные
 void rainbowDots(int from, int to) {
-  
-  FastLED.clear();
   fill_rainbow(&(leds[from]), to - from, 100, 1);
-  FastLED.show();
 }
 
 // ========= смена цвета общая
 void staticColor(int8_t dir, byte from, byte to) {
-  effSpeed = 100;
   byte thisBright;
   static byte colorCounter = 0;
   colorCounter += 2;
@@ -83,7 +79,6 @@ void staticColor(int8_t dir, byte from, byte to) {
 
 // ========= полоски радужные
 void rainbowStripes(int8_t dir, byte from, byte to) {
-  effSpeed = 40;
   static byte colorCounter = 0;
   colorCounter += 2;
   byte thisBright;
