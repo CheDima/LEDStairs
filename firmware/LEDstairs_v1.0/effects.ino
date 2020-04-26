@@ -1,62 +1,8 @@
-// плавный включатель-выключатель эффектов
-void stepFader(bool dir, bool action) {
-  // dir 0 up, 1 down
-  // action 0 starting, 1 finishing
-  // 0 0
-  // 0 1
-  // 1 0
-  // 1 1
-  byte mode = action | (dir << 1);
-  int counter = 0;
-  while (1) {
-    if (curEffect == SNAKE) {
-      EVERY_MS(LED_SPEED) {
-        switch (mode) {
-              case 0: rainbowDots(0, counter); break;
-              case 1: rainbowDots(counter, NUMLEDS); break;
-              case 2: rainbowDots(NUMLEDS - counter, NUMLEDS); break;
-              case 3: rainbowDots(0, NUMLEDS - counter); break;
-        }
-        counter++;
-        yield();
-        Serial.println("rainbow!");
-        Serial.print(counter);
-        if (counter == NUMLEDS) {
-          Serial.println("Quitting rainbow");
-          break;
-          
-        }
-      }
-    } else {
-      EVERY_MS(STEP_SPEED) {
-        counter++;
-        switch (curEffect) {
-          case COLOR:
-            switch (mode) {
-              case 0: staticColor(1, 0, counter); break;
-              case 1: staticColor(1, counter, STEP_AMOUNT); break;
-              case 2: staticColor(-1, STEP_AMOUNT - counter, STEP_AMOUNT); break;
-              case 3: staticColor(-1, 0, STEP_AMOUNT - counter); break;
-            }
-            break;
-          case RAINBOW:
-            switch (mode) {
-              case 0: rainbowStripes(-1, STEP_AMOUNT - counter, STEP_AMOUNT); break;
-              case 1: rainbowStripes(-1, 0, STEP_AMOUNT - counter); break;
-              case 2: rainbowStripes(1, STEP_AMOUNT - counter, STEP_AMOUNT); break;
-              case 3: rainbowStripes(1, 0, STEP_AMOUNT - counter); break;
-            }
-            break;
-        }
-        FastLED.show();
-        if (counter == STEP_AMOUNT) break;
-      }
-    yield();
-    }
-  }
-  if (action == 1) {
-    FastLED.clear();
-    FastLED.show();
+
+void addGlitter( fract8 chanceOfGlitter) 
+{
+  if( random8() < chanceOfGlitter) {
+    leds[ random16(NUMLEDS) ] += CRGB::White;
   }
 }
 
