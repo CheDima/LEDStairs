@@ -1,4 +1,56 @@
 
+void fadeIfTimeOut() {
+  // fade if time out
+
+  if (systemIs(WAITING_FOR_FINISH) && millis() - idleTimeoutCounter >= (TIMEOUT * 1000L)) {
+    Serial.println("Entered fadeIfTimeOut");
+    systemState.state = IDLE;
+    int changeBright = curBright;
+    while (1) {
+      EVERY_MS(50) {
+        changeBright -= 5;
+        if (changeBright < 0) {
+          break;
+        }
+        FastLED.setBrightness(changeBright);
+        FastLED.show();
+      }
+    }
+    FastLED.clear();
+    FastLED.setBrightness(curBright);
+    FastLED.show();
+  }
+  
+}
+
+void updateEffects() {
+  if (curEffect == NIGHT) {
+    rainbowDots(0, NUMLEDS-1);
+    FastLED.setBrightness(NIGHT_BRIGHT);
+    addGlitter(80);
+    FastLED.show();
+  } else if (systemState.state == WORK && curEffect == SNAKE) {
+    EVERY_MS(LED_SPEED) {
+      FastLED.clear();
+      if (systemIs(WORK, UP, STARTING)) rainbowDots(0, ledCount);
+      if (systemIs(WORK, UP, FINISHING)) rainbowDots(ledCount, NUMLEDS); 
+      if (systemIs(WORK, DOWN, STARTING)) rainbowDots(NUMLEDS - ledCount, NUMLEDS);
+      if (systemIs(WORK, DOWN, FINISHING)) rainbowDots(0, NUMLEDS - ledCount);
+      ledCount++;
+      if (ledCount == NUMLEDS) {
+        if (systemState.action == FINISHING) {
+          systemState.state = IDLE;
+        } else {
+          systemState.state = WAITING_FOR_FINISH;
+          idleTimeoutCounter = millis();
+        }
+      }
+      FastLED.show();
+    }
+
+  }
+}
+
 void addGlitter( fract8 chanceOfGlitter) 
 {
   if( random8() < chanceOfGlitter) {

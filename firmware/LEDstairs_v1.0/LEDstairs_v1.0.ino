@@ -1,6 +1,9 @@
 
 #include <FastLED.h>
 #include "bitmaps.h"
+
+#include "display.h"
+
 #define STEP_AMOUNT 16     // количество ступенек
 #define STEP_LENGTH 16    // количество чипов WS2811 на ступеньку
 
@@ -49,7 +52,7 @@ Status systemState;
 
 
 enum EFFECTS {SNAKE, NIGHT};
-EFFECTS curEffect = START_EFFECT;
+EFFECTS curEffect;
 #define EFFECTS_AMOUNT 2
 
 // ==== удобные макросы ====
@@ -69,6 +72,7 @@ int ledCount = 0;
 uint32_t idleTimeoutCounter;
     
 CRGBPalette16 firePalette;
+Display disp;
 
 void setup() {
   FastLED.addLeds<WS2812, STRIP_PIN, GRB>(leds, NUMLEDS).setCorrection( TypicalLEDStrip );
@@ -81,8 +85,7 @@ void setup() {
   delay(100);
   FastLED.clear();
   FastLED.show();
-  oledSetup();
-  systemState.state = IDLE;
+  turnOn();
 }
 
 void loop() {
@@ -95,9 +98,23 @@ void loop() {
   updateDisplay();
 }
 
+void turnOn() {
+  disp.scrollText("Hi");
+  curEffect = START_EFFECT;
+  systemState.state = IDLE;
+}
+
+void turnOff() {
+  systemState.state = OFF;
+}
+
 void readButtons() {
   if (IS_PRESSED(BUTTON_POWER)) {
-
+    if (systemIs(OFF)) {
+      turnOn();
+    } else {
+      turnOff();
+    }
   }
 
   if (IS_PRESSED(BUTTON_EFFECT)) {
@@ -116,59 +133,6 @@ bool systemIs(STATE state) {
 
 bool systemIs(STATE state, DIRECTION dir, ACTION action = STARTING) {
     return state == systemState.state && dir == systemState.direction && action == systemState.action;
-}
-
-
-void updateEffects() {
-  if (curEffect == NIGHT) {
-    rainbowDots(0, NUMLEDS-1);
-    FastLED.setBrightness(NIGHT_BRIGHT);
-    addGlitter(80);
-    FastLED.show();
-  } else if (systemState.state == WORK && curEffect == SNAKE) {
-    EVERY_MS(LED_SPEED) {
-      FastLED.clear();
-      if (systemIs(WORK, UP, STARTING)) rainbowDots(0, ledCount);
-      if (systemIs(WORK, UP, FINISHING)) rainbowDots(ledCount, NUMLEDS); 
-      if (systemIs(WORK, DOWN, STARTING)) rainbowDots(NUMLEDS - ledCount, NUMLEDS);
-      if (systemIs(WORK, DOWN, FINISHING)) rainbowDots(0, NUMLEDS - ledCount);
-      ledCount++;
-      if (ledCount == NUMLEDS) {
-        if (systemState.action == FINISHING) {
-          systemState.state = IDLE;
-        } else {
-          systemState.state = WAITING_FOR_FINISH;
-          idleTimeoutCounter = millis();
-        }
-      }
-      FastLED.show();
-    }
-
-  }
-}
-
-void fadeIfTimeOut() {
-  // fade if time out
-
-  if (systemIs(WAITING_FOR_FINISH) && millis() - idleTimeoutCounter >= (TIMEOUT * 1000L)) {
-    Serial.println("Entered fadeIfTimeOut");
-    systemState.state = IDLE;
-    int changeBright = curBright;
-    while (1) {
-      EVERY_MS(50) {
-        changeBright -= 5;
-        if (changeBright < 0) {
-          break;
-        }
-        FastLED.setBrightness(changeBright);
-        FastLED.show();
-      }
-    }
-    FastLED.clear();
-    FastLED.setBrightness(curBright);
-    FastLED.show();
-  }
-  
 }
 
 void changeState(DIRECTION dir, ACTION action = STARTING, STATE state = WORK) {
