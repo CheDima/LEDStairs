@@ -16,20 +16,24 @@ void fadeIfTimeOut() {
         FastLED.show();
       }
     }
-    FastLED.clear();
-    FastLED.setBrightness(curBright);
-    FastLED.show();
+    clearLed();
   }
   
 }
 
 void updateEffects() {
-  if (curEffect == NIGHT) {
+  if (curEffect == EFFECT_NIGHT) {
     rainbowDots(0, NUMLEDS-1);
     FastLED.setBrightness(NIGHT_BRIGHT);
     addGlitter(80);
     FastLED.show();
-  } else if (systemState.state == WORK && curEffect == SNAKE) {
+  } else if (curEffect == EFFECT_JUST_WHITE) {
+     fill_solid( &(leds[0]), NUMLEDS, CRGB::White);
+     FastLED.show();
+  }  else if (curEffect == EFFECT_JUST_BLUE) {
+     fill_solid( &(leds[0]), NUMLEDS, CRGB::Blue);
+     FastLED.show();
+  } else if (systemState.state == WORK && curEffect == EFFECT_SNAKE) {
     EVERY_MS(LED_SPEED) {
       FastLED.clear();
       if (systemIs(WORK, UP, STARTING)) rainbowDots(0, ledCount);
@@ -39,6 +43,7 @@ void updateEffects() {
       ledCount++;
       if (ledCount == NUMLEDS) {
         if (systemState.action == FINISHING) {
+          clearLed();
           systemState.state = IDLE;
         } else {
           systemState.state = WAITING_FOR_FINISH;
@@ -51,6 +56,14 @@ void updateEffects() {
   }
 }
 
+void clearLed() {
+    FastLED.clear();
+    FastLED.setBrightness(curBright);
+    delay(200);
+    FastLED.show();
+    PRINTS("LED cleared");
+}
+
 void addGlitter( fract8 chanceOfGlitter) 
 {
   if( random8() < chanceOfGlitter) {
@@ -58,7 +71,7 @@ void addGlitter( fract8 chanceOfGlitter)
   }
 }
 
-// ========= dots радужные
+// ========= from - inclusive, to - exclusive
 void rainbowDots(int from, int to) {
   fill_rainbow(&(leds[from]), to - from, 100, 1);
 }
